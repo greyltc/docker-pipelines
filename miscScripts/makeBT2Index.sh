@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # use UDR to (greatly) speed up downloads, if you don't have udr installed, set this to zero
-SUPER_FAST_DOWNLOAD=true
+SUPER_FAST_DOWNLOAD=false
+THREADS="$[$(nproc)-2]"
 
 if [ "$SUPER_FAST_DOWNLOAD" = true ] ; then
   udr --version > /dev/null 2> /dev/null
@@ -31,16 +32,14 @@ for MODEL in "${MODELS[@]}"; do
     cd "$SOURCE_DIR/$MODEL"
     if [ "$SUPER_FAST_DOWNLOAD" = true ] ; then
       udr rsync -avP hgdownload.cse.ucsc.edu::goldenPath/$MODEL/chromosomes/$CHROM.fa.gz .
-      gunzip -c $CHROM.fa.gz > "$CHROM.fa"
-      rm $CHROM.fa.gz
     else
-      curl http://hgdownload.cse.ucsc.edu/goldenPath/$MODEL/chromosomes/$CHROM.fa.gz | gunzip -c > "$CHROM.fa"
+      rsync -avP rsync://hgdownload.cse.ucsc.edu/goldenPath/$MODEL/chromosomes/$CHROM.fa.gz .
     fi
   done < "$SIZE_FILE_DIR/${MODEL}.genome" 
-  FA_LIST="$(ls -t *.fa | tr '\n' ',')"
+  FA_LIST="$(ls -t *.fa.gz | tr '\n' ',')"
   FA_LIST=${FA_LIST::-1}
   echo "Building $MODEL bowtie2 index..."
-  bowtie2-build $FA_LIST $MODEL
+  bowtie2-build --threads ${THREADS} $FA_LIST $MODEL
   mv $MODEL* "$OUT_DIR/"
 done
 rm -rf ${SOURCE_DIR}
